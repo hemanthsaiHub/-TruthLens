@@ -1,0 +1,30 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>TruthLens</title><style>
+body{font-family:system-ui,sans-serif;margin:0;background:#0b1020;color:#e2e8f0}main{max-width:960px;margin:auto;padding:20px}
+.c{background:#161d33;border-radius:12px;padding:16px;margin-top:14px}h1{margin:0}small{color:#94a3b8}
+input,textarea{width:100%;box-sizing:border-box;padding:8px;border-radius:6px;border:1px solid #2b3556;background:#0b1020;color:#e2e8f0}
+textarea{height:110px;font-family:monospace;font-size:12px}button{padding:9px 14px;border:0;border-radius:8px;background:#a78bfa;color:#0b1020;font-weight:700;cursor:pointer;margin:8px 8px 0 0}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}.sc{font-size:56px;font-weight:800}
+.high{border-left:4px solid #f87171}.medium{border-left:4px solid #fbbf24}.low{border-left:4px solid #60a5fa}
+.f{background:#0b1020;border-radius:8px;padding:8px 12px;margin-top:8px;font-size:14px}.f b{text-transform:uppercase;font-size:11px;color:#94a3b8}
+.bars{display:flex;align-items:flex-end;gap:8px;height:120px;margin-top:8px}.bars div{flex:1;text-align:center;font-size:11px}
+.bo,.be{display:inline-block;width:40%;vertical-align:bottom}.bo{background:#a78bfa}.be{background:#475569}
+</style></head><body><main>
+<h1>🔎 TruthLens</h1><small>AI data forensics: detect fake, leaky, biased or broken datasets before you trust them.</small>
+<div class="c"><input type="file" id="file" accept=".csv"><textarea id="csv" placeholder="...or paste CSV here (header + 20+ rows)"></textarea>
+<div class="row"><input id="target" placeholder="Target column (optional, e.g. approved)"><input id="sens" placeholder="Sensitive column (optional, e.g. gender)"></div>
+<button onclick="go()">Audit dataset</button><button onclick="demo()" style="background:#334155;color:#e2e8f0">Load flawed demo data</button></div>
+<div id="out"></div></main><script>
+file.onchange=e=>{const r=new FileReader();r.onload=()=>csv.value=r.result;r.readAsText(e.target.files[0])};
+async function demo(){const d=await(await fetch("/api/sample")).json();csv.value=d.csv;target.value=d.target;sens.value=d.sensitive;go()}
+async function go(){out.innerHTML='<div class="c">Analysing...</div>';
+const r=await(await fetch("/api/analyze",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({csv:csv.value,target:target.value,sensitive:sens.value})})).json();
+if(r.error){out.innerHTML=`<div class="c">${r.error}</div>`;return}
+const col=r.score>=80?"#4ade80":r.score>=55?"#fbbf24":"#f87171";
+let h=`<div class="c"><small>${r.rows} rows · ${r.columns.length} columns</small><div class="sc" style="color:${col}">${r.score}/100</div><b>${r.grade}</b><p>${r.ai_summary||r.summary}</p></div>`;
+if(r.benford){const b=r.benford,m=Math.max(...b.observed,...b.expected);
+h+=`<div class="c"><b>Benford's law check: ${b.column}</b><small> (purple = your data, grey = expected for natural data)</small><div class="bars">`+
+b.observed.map((o,i)=>`<div><span class="bo" style="height:${o/m*100}px"></span><span class="be" style="height:${b.expected[i]/m*100}px"></span><br>${i+1}</div>`).join("")+`</div></div>`}
+h+=`<div class="c"><b>Findings (${r.findings.length})</b>`+(r.findings.map(f=>`<div class="f ${f.severity}"><b>${f.severity} · ${f.column}</b><br>${f.message}</div>`).join("")||"<p>No issues found 🎉</p>")+`</div>`;
+out.innerHTML=h}
+</script></body></html>
